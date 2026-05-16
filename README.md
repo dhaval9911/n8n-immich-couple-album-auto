@@ -102,7 +102,7 @@ Open the workflow and update the **Config** node with your values:
 
 In Immich, open the album you want to use and copy the UUID from the URL:
 ```
-http://your-server/albums/df3f8f2d-0df3-45f8-8fad-743817dbfecf
+http://your-server/albums/df3f8f2d-0d82720-45f8-8fad-743817dbfecf
                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                           this is your AlbumID
 ```
