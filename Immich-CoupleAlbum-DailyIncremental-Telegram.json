@@ -1,0 +1,344 @@
+{
+  "name": "Immich - Couple Album (Full Library Backfill)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "triggerAtHour": 3
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -448,
+        80
+      ],
+      "id": "0b555a35-f2bd-441e-b39d-4a5872035dbf",
+      "name": "Manual / One-Time Trigger"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "aaa-001",
+              "name": "Person1Name",
+              "value": "Dhaval",
+              "type": "string"
+            },
+            {
+              "id": "aaa-002",
+              "name": "Person2Name",
+              "value": "Aaska",
+              "type": "string"
+            },
+            {
+              "id": "aaa-003",
+              "name": "AlbumID",
+              "value": "df3f8f2d-0df3-45f8-8fad-743817dbfecf",
+              "type": "string"
+            },
+            {
+              "id": "aaa-004",
+              "name": "ImmichBaseURL",
+              "value": "http://192.168.2.59:2283",
+              "type": "string"
+            },
+            {
+              "id": "aaa-005",
+              "name": "APIKey",
+              "value": "Be99qe79cJEZ0go319bxpoqHxR8q508zaLHbvIsjGI",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -224,
+        80
+      ],
+      "id": "f4d0aa82-001f-4114-882c-f97526464442",
+      "name": "Config"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.ImmichBaseURL }}/api/search/person",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.Person1Name }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        0,
+        0
+      ],
+      "id": "1a0685bf-44a4-4414-a649-a26dbd40b738",
+      "name": "Find Person 1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "G5BB16G2ksCjYfUz",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Resolve Person 1 ID\nconst allItems = $input.all();\nconst personName = $('Config').first().json.Person1Name;\n\nlet person = null;\n\nif (allItems.length > 1) {\n  const match = allItems.find(item => item.json.name?.toLowerCase() === personName.toLowerCase());\n  if (match) person = match.json;\n}\nif (!person) {\n  const first = $input.first().json;\n  const arr = Array.isArray(first) ? first : (first?.people ?? []);\n  const match = arr.find(p => p.name?.toLowerCase() === personName.toLowerCase());\n  if (match) person = match;\n}\nif (!person) {\n  const first = $input.first().json;\n  if (first?.name?.toLowerCase() === personName.toLowerCase()) person = first;\n}\nif (!person) throw new Error(`\"${personName}\" not found in Immich.`);\n\nreturn [{ json: { id: person.id, name: person.name } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        224,
+        0
+      ],
+      "id": "0419eb03-b9e1-466e-93b6-0950b5f61b11",
+      "name": "Extract Person 1 ID"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst person1Id = ctx.person1Id;\nconst person2Id = ctx.person2Id;\nconst baseUrl = ctx.ImmichBaseURL;\nconst apiKey = ctx.APIKey;\n\n// Fetch all assets containing Person 1 (full library, paginated)\nlet allItems = [];\nlet page = 1;\nconst size = 1000;\n\nconsole.log(`Fetching all assets for ${ctx.person1Name} (full library)...`);\n\nwhile (true) {\n  const data = await helpers.httpRequest({\n    method: 'POST',\n    url: `${baseUrl}/api/search/metadata`,\n    headers: {\n      'Content-Type': 'application/json',\n      'x-api-key': apiKey\n    },\n    body: {\n      personIds: [person1Id],\n      page,\n      size,\n      withPeople: true\n    },\n    json: true\n  });\n\n  const items = data?.assets?.items ?? [];\n  allItems = allItems.concat(items);\n  console.log(`Page ${page}: ${items.length} items, total so far: ${allItems.length}`);\n\n  if (!data?.assets?.nextPage) break;\n  page++;\n}\n\nconsole.log(`Total assets fetched for ${ctx.person1Name}: ${allItems.length}`);\n\n// Filter: exactly 2 people, and both must be Person 1 and Person 2 — no one else\nconst coupleItems = allItems.filter(photo => {\n  const people = photo.people ?? [];\n  if (people.length !== 2) return false;\n  const ids = people.map(p => p.id);\n  return ids.includes(person1Id) && ids.includes(person2Id);\n});\n\nconsole.log(`Couple photos (only ${ctx.person1Name} + ${ctx.person2Name}, nobody else): ${coupleItems.length}`);\n\nconst ids = coupleItems.map(p => p.id);\n\nreturn [{\n  json: {\n    ids,\n    count: ids.length,\n    totalFetched: allItems.length,\n    person1Name: ctx.person1Name,\n    person2Name: ctx.person2Name,\n    AlbumID: ctx.AlbumID,\n    ImmichBaseURL: baseUrl\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        80
+      ],
+      "id": "0ccda0e7-4545-47d0-add3-0abba3b81bf5",
+      "name": "Fetch & Filter Couple Photos"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "check-count",
+              "leftValue": "={{ $json.count }}",
+              "rightValue": 0,
+              "operator": {
+                "type": "number",
+                "operation": "gt"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2,
+      "position": [
+        1088,
+        80
+      ],
+      "id": "05f65ed5-6c6e-40e2-95ca-49174227e6db",
+      "name": "Any couple photos?"
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $json.ImmichBaseURL }}/api/albums/{{ $json.AlbumID }}/assets",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ \"ids\": $json.ids }) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1312,
+        0
+      ],
+      "id": "d9bd5620-9664-45d3-bded-b69aefb1aabd",
+      "name": "Add to Album",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "G5BB16G2ksCjYfUz",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const result = $input.first().json;\nconst added = result?.successfullyAdded ?? [];\nconst existing = result?.alreadyInAlbum ?? [];\nconst p1 = $('Fetch & Filter Couple Photos').first().json.person1Name;\nconst p2 = $('Fetch & Filter Couple Photos').first().json.person2Name;\nconst count = $('Fetch & Filter Couple Photos').first().json.count;\nconst total = $('Fetch & Filter Couple Photos').first().json.totalFetched;\n\nconsole.log(`Done! Added ${added.length} couple photos of ${p1} & ${p2}. ${existing.length} already in album. Couple: ${count} / Total library scanned: ${total}.`);\n\nreturn [{\n  json: {\n    status: 'success',\n    couple: `${p1} & ${p2}`,\n    newlyAdded: added.length,\n    alreadyInAlbum: existing.length,\n    couplePhotos: count,\n    totalLibraryScanned: total\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        0
+      ],
+      "id": "5860eaf4-d641-45a3-b426-4c92d1ed7516",
+      "name": "Summary"
+    },
+    {
+      "parameters": {
+        "jsCode": "const p1 = $('Fetch & Filter Couple Photos').first().json.person1Name;\nconst p2 = $('Fetch & Filter Couple Photos').first().json.person2Name;\nconsole.log(`No couple photos found for ${p1} & ${p2}.`);\nreturn [{ json: { status: 'skipped', message: `No couple photos of ${p1} & ${p2} found.` } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1312,
+        208
+      ],
+      "id": "6091f87a-b7d9-4a3d-af6b-ef946b1181d7",
+      "name": "No Photos Found"
+    },
+    {
+      "parameters": {
+        "jsCode": "// We already have Person 1 from previous node\nconst person1Id = $input.first().json.id;\nconst person1Name = $input.first().json.name;\n\nconst config = $('Config').first().json;\nconst baseUrl = config.ImmichBaseURL;\nconst apiKey = config.APIKey;\n\n// Fetch Person 2 directly via API\nconst searchResult = await helpers.httpRequest({\n  method: 'GET',\n  url: `${baseUrl}/api/search/person`,\n  headers: { 'x-api-key': apiKey },\n  qs: { name: config.Person2Name },\n  json: true\n});\n\n// Resolve Person 2 from response (handles array or split)\nconst arr = Array.isArray(searchResult) ? searchResult : (searchResult?.people ?? []);\nconst person2Name = config.Person2Name;\nconst person2 = arr.find(p => p.name?.toLowerCase() === person2Name.toLowerCase());\n\nif (!person2) {\n  throw new Error(`\"${person2Name}\" not found in Immich. Available: ${arr.map(p => p.name).join(', ')}`);\n}\n\nconsole.log(`Person 1: ${person1Name} (${person1Id})`);\nconsole.log(`Person 2: ${person2.name} (${person2.id})`);\n\nreturn [{\n  json: {\n    person1Id,\n    person2Id: person2.id,\n    person1Name,\n    person2Name: person2.name,\n    AlbumID: config.AlbumID,\n    ImmichBaseURL: baseUrl,\n    APIKey: apiKey,\n    DaysBack: config.DaysBack ?? 2\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        528,
+        32
+      ],
+      "id": "25418062-64b1-4cd2-b786-e74850871a78",
+      "name": "Get Person 2 & Build Context"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Manual / One-Time Trigger": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Find Person 1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Find Person 1": {
+      "main": [
+        [
+          {
+            "node": "Extract Person 1 ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Person 1 ID": {
+      "main": [
+        [
+          {
+            "node": "Get Person 2 & Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch & Filter Couple Photos": {
+      "main": [
+        [
+          {
+            "node": "Any couple photos?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Any couple photos?": {
+      "main": [
+        [
+          {
+            "node": "Add to Album",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "No Photos Found",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add to Album": {
+      "main": [
+        [
+          {
+            "node": "Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Person 2 & Build Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch & Filter Couple Photos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "e8fb35e6-3387-4ba7-8073-d8588e860511",
+  "meta": {
+    "instanceId": "996a6cfdb2d54bfe01731eac54c370a2c9dc69ad2a3ee4b207ad9e15d7be195e"
+  },
+  "id": "eTRm7yb7COtzigzM",
+  "tags": []
+}
