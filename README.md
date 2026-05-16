@@ -8,9 +8,9 @@ Built with [n8n](https://n8n.io/) and the Immich API. Runs on your own server, f
 
 ## 💡 What This Does
 
-If you self-host Immich, you already have face recognition tagging your people. But there's no built-in way to automatically create an album that contains *only* photos of two specific people together — your couple album, your best friend album, whatever you want it to be.
+Create an album that contains *only* photos of two specific people together — your couple album, your best friend album, whatever you want it to be.
 
-This workflow fills that gap. It finds every photo where **Person A and Person B appear together and no one else is in the frame**, and adds them to a dedicated album — automatically, every night.
+It finds every photo where **Person A and Person B appear together and no one else is in the frame**, and adds them to a dedicated album — automatically, every night.
 
 Two workflows are included:
 
