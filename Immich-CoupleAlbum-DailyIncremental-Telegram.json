@@ -1,12 +1,13 @@
 {
-  "name": "Immich - Couple Album (Full Library Backfill)",
+  "name": "Immich - Couple Album (Daily Incremental)-Telegram",
   "nodes": [
     {
       "parameters": {
         "rule": {
           "interval": [
             {
-              "triggerAtHour": 3
+              "triggerAtHour": 3,
+              "triggerAtMinute": 30
             }
           ]
         }
@@ -14,11 +15,11 @@
       "type": "n8n-nodes-base.scheduleTrigger",
       "typeVersion": 1.3,
       "position": [
-        -448,
-        80
+        464,
+        784
       ],
-      "id": "0b555a35-f2bd-441e-b39d-4a5872035dbf",
-      "name": "Manual / One-Time Trigger"
+      "id": "a06d78c2-c1c7-4311-81b2-4d4cc681d1ba",
+      "name": "Daily Trigger 3:30am"
     },
     {
       "parameters": {
@@ -27,31 +28,49 @@
             {
               "id": "aaa-001",
               "name": "Person1Name",
-              "value": "Dhaval",
+              "value": "<Person1Name_HERE>",
               "type": "string"
             },
             {
               "id": "aaa-002",
               "name": "Person2Name",
-              "value": "Aaska",
+              "value": "<Person2Name_HERE>",
               "type": "string"
             },
             {
               "id": "aaa-003",
               "name": "AlbumID",
-              "value": "df3f8f2d-0df3-45f8-8fad-743817dbfecf",
+              "value": "<COUPLE_ALBUM_ID_HERE>",
               "type": "string"
             },
             {
               "id": "aaa-004",
               "name": "ImmichBaseURL",
-              "value": "http://192.168.2.59:2283",
+              "value": "http://<YOUR_SERVER_IP>:2283",
               "type": "string"
             },
             {
               "id": "aaa-005",
               "name": "APIKey",
-              "value": "Be99qe79cJEZ0go319bxpoqHxR8q508zaLHbvIsjGI",
+              "value": "<API_KEY_HERE>",
+              "type": "string"
+            },
+            {
+              "id": "aaa-006",
+              "name": "DaysBack",
+              "value": 2,
+              "type": "number"
+            },
+            {
+              "id": "aaa-007",
+              "name": "TelegramBotToken",
+              "value": "<TELEGRAM_BOT_TOKEN_HERE>",
+              "type": "string"
+            },
+            {
+              "id": "aaa-008",
+              "name": "TelegramChatID",
+              "value": "<TELEGRAM_CHAT_ID_HERE>",
               "type": "string"
             }
           ]
@@ -61,10 +80,10 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        -224,
-        80
+        688,
+        784
       ],
-      "id": "f4d0aa82-001f-4114-882c-f97526464442",
+      "id": "627838c4-6c37-4340-98bc-0b9fa559e9d0",
       "name": "Config"
     },
     {
@@ -86,42 +105,55 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        0,
-        0
+        912,
+        704
       ],
-      "id": "1a0685bf-44a4-4414-a649-a26dbd40b738",
+      "id": "6613a20f-8361-4356-a918-eabd3085fec5",
       "name": "Find Person 1",
       "credentials": {
         "httpHeaderAuth": {
           "id": "G5BB16G2ksCjYfUz",
-          "name": "Header Auth account"
+          "name": "Immich-API-Key"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// Resolve Person 1 ID\nconst allItems = $input.all();\nconst personName = $('Config').first().json.Person1Name;\n\nlet person = null;\n\nif (allItems.length > 1) {\n  const match = allItems.find(item => item.json.name?.toLowerCase() === personName.toLowerCase());\n  if (match) person = match.json;\n}\nif (!person) {\n  const first = $input.first().json;\n  const arr = Array.isArray(first) ? first : (first?.people ?? []);\n  const match = arr.find(p => p.name?.toLowerCase() === personName.toLowerCase());\n  if (match) person = match;\n}\nif (!person) {\n  const first = $input.first().json;\n  if (first?.name?.toLowerCase() === personName.toLowerCase()) person = first;\n}\nif (!person) throw new Error(`\"${personName}\" not found in Immich.`);\n\nreturn [{ json: { id: person.id, name: person.name } }];"
+        "jsCode": "const allItems = $input.all();\nconst personName = $('Config').first().json.Person1Name;\n\nlet person = null;\n\nif (allItems.length > 1) {\n  const match = allItems.find(item => item.json.name?.toLowerCase() === personName.toLowerCase());\n  if (match) person = match.json;\n}\nif (!person) {\n  const first = $input.first().json;\n  const arr = Array.isArray(first) ? first : (first?.people ?? []);\n  const match = arr.find(p => p.name?.toLowerCase() === personName.toLowerCase());\n  if (match) person = match;\n}\nif (!person) {\n  const first = $input.first().json;\n  if (first?.name?.toLowerCase() === personName.toLowerCase()) person = first;\n}\nif (!person) throw new Error(`\"${personName}\" not found in Immich.`);\n\nreturn [{ json: { id: person.id, name: person.name } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        224,
-        0
+        1136,
+        704
       ],
-      "id": "0419eb03-b9e1-466e-93b6-0950b5f61b11",
+      "id": "ae31e40a-8ae8-43ce-8952-47b01483cf44",
       "name": "Extract Person 1 ID"
     },
     {
       "parameters": {
-        "jsCode": "const ctx = $input.first().json;\nconst person1Id = ctx.person1Id;\nconst person2Id = ctx.person2Id;\nconst baseUrl = ctx.ImmichBaseURL;\nconst apiKey = ctx.APIKey;\n\n// Fetch all assets containing Person 1 (full library, paginated)\nlet allItems = [];\nlet page = 1;\nconst size = 1000;\n\nconsole.log(`Fetching all assets for ${ctx.person1Name} (full library)...`);\n\nwhile (true) {\n  const data = await helpers.httpRequest({\n    method: 'POST',\n    url: `${baseUrl}/api/search/metadata`,\n    headers: {\n      'Content-Type': 'application/json',\n      'x-api-key': apiKey\n    },\n    body: {\n      personIds: [person1Id],\n      page,\n      size,\n      withPeople: true\n    },\n    json: true\n  });\n\n  const items = data?.assets?.items ?? [];\n  allItems = allItems.concat(items);\n  console.log(`Page ${page}: ${items.length} items, total so far: ${allItems.length}`);\n\n  if (!data?.assets?.nextPage) break;\n  page++;\n}\n\nconsole.log(`Total assets fetched for ${ctx.person1Name}: ${allItems.length}`);\n\n// Filter: exactly 2 people, and both must be Person 1 and Person 2 — no one else\nconst coupleItems = allItems.filter(photo => {\n  const people = photo.people ?? [];\n  if (people.length !== 2) return false;\n  const ids = people.map(p => p.id);\n  return ids.includes(person1Id) && ids.includes(person2Id);\n});\n\nconsole.log(`Couple photos (only ${ctx.person1Name} + ${ctx.person2Name}, nobody else): ${coupleItems.length}`);\n\nconst ids = coupleItems.map(p => p.id);\n\nreturn [{\n  json: {\n    ids,\n    count: ids.length,\n    totalFetched: allItems.length,\n    person1Name: ctx.person1Name,\n    person2Name: ctx.person2Name,\n    AlbumID: ctx.AlbumID,\n    ImmichBaseURL: baseUrl\n  }\n}];"
+        "jsCode": "const person1Id = $input.first().json.id;\nconst person1Name = $input.first().json.name;\n\nconst config = $('Config').first().json;\nconst baseUrl = config.ImmichBaseURL;\nconst apiKey = config.APIKey;\n\nconst searchResult = await helpers.httpRequest({\n  method: 'GET',\n  url: `${baseUrl}/api/search/person`,\n  headers: { 'x-api-key': apiKey },\n  qs: { name: config.Person2Name },\n  json: true\n});\n\nconst arr = Array.isArray(searchResult) ? searchResult : (searchResult?.people ?? []);\nconst person2Name = config.Person2Name;\nconst person2 = arr.find(p => p.name?.toLowerCase() === person2Name.toLowerCase());\n\nif (!person2) {\n  throw new Error(`\"${person2Name}\" not found in Immich. Available: ${arr.map(p => p.name).join(', ')}`);\n}\n\nconsole.log(`Person 1: ${person1Name} (${person1Id})`);\nconsole.log(`Person 2: ${person2.name} (${person2.id})`);\n\nreturn [{\n  json: {\n    person1Id,\n    person2Id: person2.id,\n    person1Name,\n    person2Name: person2.name,\n    AlbumID: config.AlbumID,\n    ImmichBaseURL: baseUrl,\n    APIKey: apiKey,\n    DaysBack: config.DaysBack ?? 2,\n    TelegramBotToken: config.TelegramBotToken,\n    TelegramChatID: config.TelegramChatID\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        880,
-        80
+        1440,
+        736
       ],
-      "id": "0ccda0e7-4545-47d0-add3-0abba3b81bf5",
+      "id": "f6661843-5eca-446b-8b5c-cc2f3a7f67a7",
+      "name": "Get Person 2 & Build Context"
+    },
+    {
+      "parameters": {
+        "jsCode": "const ctx = $input.first().json;\nconst person1Id = ctx.person1Id;\nconst person2Id = ctx.person2Id;\nconst baseUrl = ctx.ImmichBaseURL;\nconst apiKey = ctx.APIKey;\nconst daysBack = ctx.DaysBack ?? 2;\n\nconst sinceDate = new Date(Date.now() - daysBack * 24 * 60 * 60 * 1000).toISOString();\nconsole.log(`Fetching photos since: ${sinceDate} (last ${daysBack} days)`);\n\nlet allItems = [];\nlet page = 1;\nconst size = 1000;\n\nwhile (true) {\n  const data = await helpers.httpRequest({\n    method: 'POST',\n    url: `${baseUrl}/api/search/metadata`,\n    headers: {\n      'Content-Type': 'application/json',\n      'x-api-key': apiKey\n    },\n    body: {\n      personIds: [person1Id],\n      page,\n      size,\n      withPeople: true,\n      takenAfter: sinceDate\n    },\n    json: true\n  });\n\n  const items = data?.assets?.items ?? [];\n  allItems = allItems.concat(items);\n  console.log(`Page ${page}: ${items.length} items, total so far: ${allItems.length}`);\n\n  if (!data?.assets?.nextPage) break;\n  page++;\n}\n\nconsole.log(`Total assets in last ${daysBack} days: ${allItems.length}`);\n\nconst coupleItems = allItems.filter(photo => {\n  const people = photo.people ?? [];\n  if (people.length !== 2) return false;\n  const ids = people.map(p => p.id);\n  return ids.includes(person1Id) && ids.includes(person2Id);\n});\n\nconsole.log(`Couple-only photos (last ${daysBack} days): ${coupleItems.length}`);\n\nconst ids = coupleItems.map(p => p.id);\n\nreturn [{\n  json: {\n    ids,\n    count: ids.length,\n    totalFetched: allItems.length,\n    person1Name: ctx.person1Name,\n    person2Name: ctx.person2Name,\n    AlbumID: ctx.AlbumID,\n    ImmichBaseURL: baseUrl,\n    TelegramBotToken: ctx.TelegramBotToken,\n    TelegramChatID: ctx.TelegramChatID,\n    sinceDate\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1792,
+        784
+      ],
+      "id": "092a8e0d-cee4-4eb3-a458-967da5a04353",
       "name": "Fetch & Filter Couple Photos"
     },
     {
@@ -151,10 +183,10 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        1088,
-        80
+        2000,
+        784
       ],
-      "id": "05f65ed5-6c6e-40e2-95ca-49174227e6db",
+      "id": "237e498b-83c3-4296-89fd-470afca30b90",
       "name": "Any couple photos?"
     },
     {
@@ -180,61 +212,48 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        1312,
-        0
+        2224,
+        704
       ],
-      "id": "d9bd5620-9664-45d3-bded-b69aefb1aabd",
+      "id": "b2c7ff87-075c-4f45-a7ee-be44728ef44a",
       "name": "Add to Album",
       "credentials": {
         "httpHeaderAuth": {
           "id": "G5BB16G2ksCjYfUz",
-          "name": "Header Auth account"
+          "name": "Immich-API-Key"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const result = $input.first().json;\nconst added = result?.successfullyAdded ?? [];\nconst existing = result?.alreadyInAlbum ?? [];\nconst p1 = $('Fetch & Filter Couple Photos').first().json.person1Name;\nconst p2 = $('Fetch & Filter Couple Photos').first().json.person2Name;\nconst count = $('Fetch & Filter Couple Photos').first().json.count;\nconst total = $('Fetch & Filter Couple Photos').first().json.totalFetched;\n\nconsole.log(`Done! Added ${added.length} couple photos of ${p1} & ${p2}. ${existing.length} already in album. Couple: ${count} / Total library scanned: ${total}.`);\n\nreturn [{\n  json: {\n    status: 'success',\n    couple: `${p1} & ${p2}`,\n    newlyAdded: added.length,\n    alreadyInAlbum: existing.length,\n    couplePhotos: count,\n    totalLibraryScanned: total\n  }\n}];"
+        "jsCode": "const result = $input.first().json;\nconst added = result?.successfullyAdded ?? [];\nconst existing = result?.alreadyInAlbum ?? [];\nconst p1 = $('Fetch & Filter Couple Photos').first().json.person1Name;\nconst p2 = $('Fetch & Filter Couple Photos').first().json.person2Name;\nconst count = $('Fetch & Filter Couple Photos').first().json.count;\nconst total = $('Fetch & Filter Couple Photos').first().json.totalFetched;\nconst since = $('Fetch & Filter Couple Photos').first().json.sinceDate;\nconst botToken = $('Fetch & Filter Couple Photos').first().json.TelegramBotToken;\nconst chatId = $('Fetch & Filter Couple Photos').first().json.TelegramChatID;\n\nconst message = `📸 *Immich Couple Album Update*\n\n✅ ${added.length} new photo(s) added\n👫 ${p1} & ${p2}\n🔁 ${existing.length} already in album\n🔍 ${count} couple photos found / ${total} scanned\n📅 Since: ${new Date(since).toLocaleDateString('en-CA')}`;\n\nawait helpers.httpRequest({\n  method: 'POST',\n  url: `https://api.telegram.org/bot${botToken}/sendMessage`,\n  headers: { 'Content-Type': 'application/json' },\n  body: {\n    chat_id: chatId,\n    text: message,\n    parse_mode: 'Markdown'\n  },\n  json: true\n});\n\nconsole.log(`Telegram notified: ${added.length} added, ${existing.length} existing.`);\n\nreturn [{\n  json: {\n    status: 'success',\n    couple: `${p1} & ${p2}`,\n    newlyAdded: added.length,\n    alreadyInAlbum: existing.length,\n    couplePhotos: count,\n    totalFetched: total,\n    since\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1536,
-        0
+        2448,
+        704
       ],
-      "id": "5860eaf4-d641-45a3-b426-4c92d1ed7516",
-      "name": "Summary"
+      "id": "3c697d8b-d4e2-4fdc-aa54-cce00fd1cbd3",
+      "name": "Summary & Notify"
     },
     {
       "parameters": {
-        "jsCode": "const p1 = $('Fetch & Filter Couple Photos').first().json.person1Name;\nconst p2 = $('Fetch & Filter Couple Photos').first().json.person2Name;\nconsole.log(`No couple photos found for ${p1} & ${p2}.`);\nreturn [{ json: { status: 'skipped', message: `No couple photos of ${p1} & ${p2} found.` } }];"
+        "jsCode": "const p1 = $('Fetch & Filter Couple Photos').first().json.person1Name;\nconst p2 = $('Fetch & Filter Couple Photos').first().json.person2Name;\nconst since = $('Fetch & Filter Couple Photos').first().json.sinceDate;\nconst total = $('Fetch & Filter Couple Photos').first().json.totalFetched;\nconst botToken = $('Fetch & Filter Couple Photos').first().json.TelegramBotToken;\nconst chatId = $('Fetch & Filter Couple Photos').first().json.TelegramChatID;\n\nconst message = `📷 *Immich Couple Album*\n\n😴 No new couple photos found\n👫 ${p1} & ${p2}\n🔍 ${total} photos scanned, none matched\n📅 Since: ${new Date(since).toLocaleDateString('en-CA')}`;\n\nawait helpers.httpRequest({\n  method: 'POST',\n  url: `https://api.telegram.org/bot${botToken}/sendMessage`,\n  headers: { 'Content-Type': 'application/json' },\n  body: {\n    chat_id: chatId,\n    text: message,\n    parse_mode: 'Markdown'\n  },\n  json: true\n});\n\nreturn [{ json: { status: 'skipped', message: `No new couple photos of ${p1} & ${p2} since ${since}.` } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1312,
-        208
+        2224,
+        912
       ],
-      "id": "6091f87a-b7d9-4a3d-af6b-ef946b1181d7",
-      "name": "No Photos Found"
-    },
-    {
-      "parameters": {
-        "jsCode": "// We already have Person 1 from previous node\nconst person1Id = $input.first().json.id;\nconst person1Name = $input.first().json.name;\n\nconst config = $('Config').first().json;\nconst baseUrl = config.ImmichBaseURL;\nconst apiKey = config.APIKey;\n\n// Fetch Person 2 directly via API\nconst searchResult = await helpers.httpRequest({\n  method: 'GET',\n  url: `${baseUrl}/api/search/person`,\n  headers: { 'x-api-key': apiKey },\n  qs: { name: config.Person2Name },\n  json: true\n});\n\n// Resolve Person 2 from response (handles array or split)\nconst arr = Array.isArray(searchResult) ? searchResult : (searchResult?.people ?? []);\nconst person2Name = config.Person2Name;\nconst person2 = arr.find(p => p.name?.toLowerCase() === person2Name.toLowerCase());\n\nif (!person2) {\n  throw new Error(`\"${person2Name}\" not found in Immich. Available: ${arr.map(p => p.name).join(', ')}`);\n}\n\nconsole.log(`Person 1: ${person1Name} (${person1Id})`);\nconsole.log(`Person 2: ${person2.name} (${person2.id})`);\n\nreturn [{\n  json: {\n    person1Id,\n    person2Id: person2.id,\n    person1Name,\n    person2Name: person2.name,\n    AlbumID: config.AlbumID,\n    ImmichBaseURL: baseUrl,\n    APIKey: apiKey,\n    DaysBack: config.DaysBack ?? 2\n  }\n}];"
-      },
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        528,
-        32
-      ],
-      "id": "25418062-64b1-4cd2-b786-e74850871a78",
-      "name": "Get Person 2 & Build Context"
+      "id": "1a1c4d72-9ccb-48ff-8b7e-9dd276d52d4e",
+      "name": "No New Photos"
     }
   ],
   "pinData": {},
   "connections": {
-    "Manual / One-Time Trigger": {
+    "Daily Trigger 3:30am": {
       "main": [
         [
           {
@@ -278,6 +297,17 @@
         ]
       ]
     },
+    "Get Person 2 & Build Context": {
+      "main": [
+        [
+          {
+            "node": "Fetch & Filter Couple Photos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Fetch & Filter Couple Photos": {
       "main": [
         [
@@ -300,7 +330,7 @@
         ],
         [
           {
-            "node": "No Photos Found",
+            "node": "No New Photos",
             "type": "main",
             "index": 0
           }
@@ -311,34 +341,38 @@
       "main": [
         [
           {
-            "node": "Summary",
+            "node": "Summary & Notify",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Get Person 2 & Build Context": {
+    "No New Photos": {
       "main": [
-        [
-          {
-            "node": "Fetch & Filter Couple Photos",
-            "type": "main",
-            "index": 0
-          }
-        ]
+        []
+      ]
+    },
+    "Summary & Notify": {
+      "main": [
+        []
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
-    "binaryMode": "separate"
+    "binaryMode": "separate",
+    "timeSavedMode": "fixed",
+    "errorWorkflow": "W2lR8n97OH1sMlq5",
+    "timezone": "Asia/Kolkata",
+    "callerPolicy": "workflowsFromSameOwner",
+    "availableInMCP": false
   },
-  "versionId": "e8fb35e6-3387-4ba7-8073-d8588e860511",
+  "versionId": "85bc056e-9d80-4c7b-a23d-fab81aa53787",
   "meta": {
     "instanceId": "996a6cfdb2d54bfe01731eac54c370a2c9dc69ad2a3ee4b207ad9e15d7be195e"
   },
-  "id": "eTRm7yb7COtzigzM",
+  "id": "7MqWqqizRoTtYAwK",
   "tags": []
 }
